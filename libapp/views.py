@@ -4,7 +4,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.urls import reverse
+from django.db.models import Q
+from datetime import date
 from .models import Book, Peminjaman
 
 # Create your views here.
@@ -105,3 +106,29 @@ def history(request):
     show_data_final = paginator.get_page(page_number)
     
     return render(request, "libapp/history.html", {"books": show_data_final})
+
+@login_required(login_url="login")
+def balik(request):
+    if request.method == "POST":
+        book_id = request.POST["book_id"]
+        current_book = Book.objects.get(id=book_id)
+
+        book = Book.objects.filter(id=book_id)
+        book.update(quantity=book[0].quantity + 1)
+
+        # return books
+        issue_item = Peminjaman.objects.filter(
+            user_id = request.user,
+            book_id = current_book,
+            tgl_kembali__isnull = True
+        )
+        issue_item.update(tgl_kembali = date.today())
+        messages.success(request, "Book returned successfully.")
+        
+    my_items = Peminjaman.objects.filter(
+        user_id = request.user,
+        tgl_kembali__isnull=True
+    ).values_list("book_id")
+    books = Book.objects.exclude(~Q(id__in=my_items))
+    
+    return render(request, "libapp/return_item.html", {"books": books})
